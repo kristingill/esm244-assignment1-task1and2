@@ -1,0 +1,87 @@
+---
+title: "Sierra Amphibians"
+author: "Kristin Gill"
+date: "1/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(janitor)
+library(here)
+library(readxl)
+library(lubridate)
+library(patchwork)
+```
+
+### Reading in the Sierra Nevada Amphibian Data 
+```{r}
+# read in the data
+amphibian_data <- read_excel(here("data", "sierra_amphibians.xlsx"))
+```
+
+### Data wrangling and graph creation: frog counts by year and life stage
+```{r}
+# narrowing down the data to what we want to focus on
+rana_mucosa <- amphibian_data %>% 
+  filter(amphibian_species == "RAMU") %>% 
+  filter(amphibian_life_stage != "EggMass") %>% 
+  # convert the date
+  mutate(survey_date = ymd(survey_date)) %>% 
+  mutate(year = year(survey_date))
+```
+
+```{r}
+# rana mucosa count each year across all water bodies, by life stage
+frog_counts <- rana_mucosa %>% 
+  group_by(year) %>% 
+  count(amphibian_life_stage)
+
+# creating a finalized graph of the data
+counts_graph <- ggplot(data = frog_counts, aes(x = year,
+                               y = n)) +
+  geom_col(aes(fill = amphibian_life_stage), show.legend = FALSE) +
+  facet_wrap(~amphibian_life_stage) +
+  theme_minimal() +
+  labs(x = "Time (Years)",
+       y = "Frog Count",
+       title = "Counts of Mountain Yellow-legged Frogs(Rana muscosa)") +
+  scale_fill_manual(values = c("palegreen4", "palegreen3", "palegreen"))
+```
+
+### Data wrangling and graph creation: top 5 lakes by frog counts (adult and subadult)
+```{r}
+# getting data for the second graph 
+adult_subadult <- rana_mucosa %>% 
+  filter(amphibian_life_stage != "Tadpole")
+```
+
+```{r}
+top_5_lakes <- adult_subadult %>% 
+  count(lake_id) %>% 
+  arrange(desc(n)) %>% 
+  slice_max(n, n = 5) %>% 
+  mutate(lake = "Lake") %>% 
+  relocate(lake) %>% 
+  unite("lake_id", lake:lake_id, sep = " ")
+
+# creating the graph
+lakes_graph <- ggplot(data = top_5_lakes, aes(x = fct_reorder(lake_id, n),
+                               y = n)) +
+  geom_col(fill = "turquoise") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Lake",
+       y = "Frog Count",
+       title = "Lakes with Highest Counts of Adult + Subadult Rana muscosa")
+```
+
+### Creating a finalized compound graph
+```{r, fig.cap = "**Figure 1:** Counts of the endangered Mountain Yellow-legged Frogs (*Rana muscosa*) in the Sierra Nevada, California from 1995-2002. The upper graph shows a breakdown of counts by life stage (Adult, Subadult, and Tadpole), while the lower graph shows lakes with the highest counts of frogs in the Adult and Subadult life stages. The colors indicate the different life stages. Data from: Knapp, R.A., C. Pavelka, E.E. Hegeman, and T.C. Smith. 2020. The Sierra Lakes Inventory Project: Non-Native fish and community composition of lakes and ponds in the Sierra Nevada, California ver 2. Environmental Data Initiative. https://doi.org/10.6073/pasta/d835832d7fd00d9e4466e44eea87fab3"}
+# creating a compound figure using patchwork
+graph_compound <- (counts_graph/lakes_graph) & plot_layout(guides = "collect")
+
+graph_compound
+```
+
