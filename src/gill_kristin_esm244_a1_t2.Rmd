@@ -1,0 +1,71 @@
+---
+title: "Nutrients in Sweets, Fruits and Fruit Juices, and Fast Foods"
+author: "Kristin Gill"
+date: "1/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(ggfortify)
+```
+
+### Introduction
+The food nutrient data used in this analysis is from the the USDA FoodData Central. The information used includes data on macro-nutrients, fiber, calories, sugar, and vitamins. This principal components analysis (PCA) aims to understand the relationships among these nutrients in sweets, fruits and fruit juices, and fast foods.
+
+**Data Citation:** United States Department of Agriculture (USDA) FoodData Central. October 2020. https://fdc.nal.usda.gov/index.html
+
+### Principal Components Analysis: Sweets, Fruit Juices, and Fast Foods
+
+##### Narrowing down all of the data
+```{r}
+# read in the data
+nutrients_data <- read_csv(here("data", "usda_nutrients.csv")) %>% 
+  clean_names() %>% 
+  mutate(across(where(is.character), tolower)) %>% 
+  select(!(short_descrip:scientific_name)) %>% 
+  drop_na() %>%
+  # pick the food groups to focus on: sweets, fruits, and fast foods
+  filter(food_group == c("sweets", "fruits and fruit juices", "fast foods")) %>% 
+  # limiting data to only include macros, calories, sugar, fiber, and some vitamins; also not including daily allowances
+  select(!folate_mcg:zinc_usrda) %>% 
+  # removing id because it is not a value we want to include in the PCA nor graph
+  select(!id) %>% 
+  # I will remove a vitamin b because they overlap and it is hard to read
+  select(!vit_b12_mcg)
+```
+
+##### Running PCA
+```{r, fig.cap = "**Figure 1:** The relationships among multiple food nutrient variables found in sweets, fruits, and fast foods shown in two dimensional space. The colored points indicate the score of each observation based on the first two principle components. The closer the points are to each other, the more similar the observations are. The length of the lines indicate the variance in the principal component direction and the angles between the lines show how correlated the variables are to each other. An angle of zero degrees means positive correlation, an angle of 90 degrees means no correlation, and an angle of 180 degrees indicates a negative correlation. "}
+nutrients_PCA <- nutrients_data %>% 
+  # remove the non-numeric column
+  select(!food_group) %>% 
+  # scale values so that the weights don't throw off the PCA
+  scale() %>% 
+  prcomp()
+
+# run PCA
+nutrients_PCA$rotation
+
+# creating the biplot with a graph of the unscaled, wrangled data
+autoplot(nutrients_PCA,
+         data = nutrients_data,
+         colour = "food_group",
+         loadings = TRUE,
+         loadings.label = TRUE,
+         loadings.label.size = 4,
+         loadings.label.vjust = 1.5,
+         loadings.colour = "black",
+         loadings.label.colour = "black") +
+  theme_minimal()
+```
+
+### Summary
+- Sugar(grams) and carbohydrates(grams) are strongly positively correlated. 
+- Sugar and carbohydrates are negatively correlated with vitamin C(mg) vitamin A (mcg), and they are only minimally correlated with fat (g) and vitamin E (mg).
+- While fruits/fruit juices and fast foods tend to cluster and be more similar to each other, sweets are more spread out. 
+- Fat (g) and energy (kcal) are positively correlated.
+- Fiber (g) and energy are strongly positively correlated. 
